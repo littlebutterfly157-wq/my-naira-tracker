@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14532d">
+<title>My Naira Tracker</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#17211b;background:#f4f7f4}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:760px;margin-inline:auto}
+header{background:#14532d;color:white;padding:22px;border-radius:18px;margin-bottom:16px}
+h1{margin:0 0 6px;font-size:1.6rem}header p{margin:0;color:#e3f3e7}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:16px}
+.card,section{background:white;border:1px solid #e1e9e2;border-radius:14px;padding:14px}
+.card small{display:block;color:#536358;font-size:.78rem}.card strong{display:block;margin-top:6px;font-size:1.05rem;overflow-wrap:anywhere}
+section{margin-bottom:14px}h2{font-size:1.05rem;margin:0 0 12px}
+form{display:grid;gap:10px}label{font-size:.88rem;font-weight:600;display:grid;gap:5px}
+input,select,button{font:inherit;padding:12px;border-radius:10px;border:1px solid #cbd7cd;width:100%;background:white;color:inherit}
+button{border:0;background:#166534;color:white;font-weight:700;cursor:pointer}
+button.secondary{background:#e8f0e9;color:#164526}button.danger{background:#fff0ee;color:#9f261d;padding:8px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid #edf1ed}
+.item:last-child{border-bottom:0}.item small{display:block;color:#5b6a60;margin-top:3px}
+.amount{font-weight:700;white-space:nowrap}.income{color:#16733b}.expense{color:#b42318}
+#empty{color:#5b6a60;font-size:.9rem}.note{font-size:.82rem;color:#5b6a60;line-height:1.5}
+@media(max-width:440px){body{padding:12px}.cards{gap:6px}.card{padding:10px}.card strong{font-size:.9rem}.card small{font-size:.7rem}}
+</style>
+</head>
+<body>
+<header><h1>My Naira Tracker</h1><p>Track what comes in, what goes out, and what remains.</p></header>
+<div class="cards">
+  <div class="card"><small>Total income</small><strong id="income">₦0</strong></div>
+  <div class="card"><small>Total expenses</small><strong id="expenses">₦0</strong></div>
+  <div class="card"><small>Balance</small><strong id="balance">₦0</strong></div>
+</div>
+<section>
+<h2>Add a transaction</h2>
+<form id="entry-form">
+<label>Type<select id="type"><option value="income">Income</option><option value="expense">Expense</option></select></label>
+<label>Amount (₦)<input id="amount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 5000" required></label>
+<label>Description<input id="description" maxlength="80" placeholder="e.g. payment or transport" required></label>
+<label>Date<input id="date" type="date" required></label>
+<button type="submit">Add transaction</button>
+</form>
+</section>
+<section>
+<h2>Transactions</h2>
+<div id="transactions"><p id="empty">No transactions yet. Add your first one above.</p></div>
+<div class="actions" style="margin-top:12px">
+<button class="secondary" id="export" type="button">Export CSV</button>
+<button class="secondary" id="clear" type="button">Clear all</button>
+</div>
+</section>
+<p class="note">Your records are saved in this browser on this device. Clearing browser data or using a different browser may remove or hide them. This prototype is not a bank service; avoid storing sensitive financial details.</p>
+<script>
+(function(){
+  const KEY='my-naira-tracker-v1';
+  const $=id=>document.getElementById(id);
+  const money=n=>'₦'+Number(n).toLocaleString('en-NG',{maximumFractionDigits:2});
+  let entries=[];
+  try{entries=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(entries))entries=[];}catch(e){entries=[];}
+  $('date').value=new Date().toISOString().slice(0,10);
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(entries));}catch(e){alert('Could not save in this browser. Check available storage.');}}
+  function render(){
+    const income=entries.filter(x=>x.type==='income').reduce((s,x)=>s+x.amount,0);
+    const expenses=entries.filter(x=>x.type==='expense').reduce((s,x)=>s+x.amount,0);
+    $('income').textContent=money(income);$('expenses').textContent=money(expenses);$('balance').textContent=money(income-expenses);
+    const root=$('transactions');root.innerHTML='';
+    if(!entries.length){root.innerHTML='<p id="empty">No transactions yet. Add your first one above.</p>';return;}
+    [...entries].sort((a,b)=>b.date.localeCompare(a.date)||b.created-a.created).forEach(x=>{
+      const row=document.createElement('div');row.className='item';
+      const info=document.createElement('div');const title=document.createElement('div');title.textContent=x.description;
+      const meta=document.createElement('small');meta.textContent=(x.type==='income'?'Income':'Expense')+' · '+x.date;info.append(title,meta);
+      const right=document.createElement('div');right.style.display='flex';right.style.alignItems='center';right.style.gap='8px';
+      const amt=document.createElement('span');amt.className='amount '+(x.type==='income'?'income':'expense');amt.textContent=(x.type==='income'?'+':'−')+money(x.amount);
+      const del=document.createElement('button');del.type='button';del.className='danger';del.textContent='Delete';del.setAttribute('aria-label','Delete '+x.description);del.onclick=()=>{entries=entries.filter(y=>y.id!==x.id);save();render();};
+      right.append(amt,del);row.append(info,right);root.append(row);
+    });
+  }
+  $('entry-form').addEventListener('submit',e=>{
+    e.preventDefault();const amount=Number($('amount').value);const description=$('description').value.trim();const date=$('date').value;
+    if(!Number.isFinite(amount)||amount<=0||!description||!date)return;
+    entries.push({id:String(Date.now())+Math.random().toString(16).slice(2),type:$('type').value,amount,description,date,created:Date.now()});
+    save();render();$('amount').value='';$('description').value='';$('amount').focus();
+  });
+  $('clear').onclick=()=>{if(entries.length&&confirm('Delete all transactions from this browser? This cannot be undone.')){entries=[];save();render();}};
+  $('export').onclick=()=>{
+    const esc=s=>'"'+String(s).replace(/"/g,'""')+'"';
+    const csv=[['Date','Type','Description','Amount_NGN'],...entries.map(x=>[x.date,x.type,x.description,x.amount])].map(r=>r.map(esc).join(',')).join('\r\n');
+    const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='my-naira-tracker.csv';a.click();URL.revokeObjectURL(url);
+  };
+  render();
+})();
+</script>
+</body>
+</html>
